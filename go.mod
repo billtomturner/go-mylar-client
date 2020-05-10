@@ -1,4 +1,4 @@
-module mylar
+module github.com/billtomturner/go-mylar-client
 
 go 1.14
 

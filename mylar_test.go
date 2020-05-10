@@ -1,10 +1,10 @@
 package mylar_test
 
 import (
-	"mylar"
 	"testing"
 
 	"github.com/SemanticallyNull/golandreporter"
+	"github.com/billtomturner/go-mylar-client"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"gopkg.in/h2non/gock.v1"
