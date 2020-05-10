@@ -8,6 +8,15 @@ import (
 	"net/url"
 )
 
+// Mylar is a mylar client
+type Mylar struct {
+	baseURL    *url.URL
+	apiKey     string
+	HTTPClient http.Client
+	//Timeout in seconds -- default 5
+	Timeout int
+}
+
 // New creates a new Mylar client instance.
 func New(apiURL, apiKey string) (*Mylar, error) {
 	if apiURL == "" {
@@ -27,14 +36,6 @@ func New(apiURL, apiKey string) (*Mylar, error) {
 	}, nil
 }
 
-type Mylar struct {
-	baseURL    *url.URL
-	apiKey     string
-	HTTPClient http.Client
-	//Timeout in seconds -- default 5
-	Timeout int
-}
-
 var commandValues = []string{
 	"getIndex",
 	"getComic",
@@ -44,10 +45,6 @@ var commandValues = []string{
 
 type command int
 
-func (c command) String() string {
-	return commandValues[c]
-}
-
 const (
 	GetIndexCommand command = iota
 	GetComicCommand
@@ -55,6 +52,40 @@ const (
 	GetHistoryCommand
 )
 
+// String returns the string based value of the command enum
+func (c command) String() string {
+	return commandValues[c]
+}
+
+// Error is an error return from the Mylar structured API response
+type Error struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// Response is a structured response from the Mylar API.  Not all of the APIs
+// use this format, but there are several that share this format.
+type Response struct {
+	Success bool            `json:"success"`
+	Error   Error           `json:"error"`
+	Data    json.RawMessage `json:"data"`
+}
+
+// Comic is a comic book series with one or more issues.  It is used in both
+// the index and ComicDetail methods
+type Comic struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ImageURL    string `json:"imageURL"`
+	Status      string `json:"status"`
+	Publisher   string `json:"publisher"`
+	Year        string `json:"year"`
+	LatestIssue string `json:"latestIssue"`
+	Total       int    `json:"totalIssues"`
+	DetailsURL  string `json:"detailsURL"`
+}
+
+// GetIndex returns a list of comics
 func (m Mylar) GetIndex() ([]Comic, error) {
 	httpResponse, err := m.get(GetIndexCommand, url.Values{})
 	if err != nil {
@@ -72,6 +103,26 @@ func (m Mylar) GetIndex() ([]Comic, error) {
 	return results, nil
 }
 
+// ComicDetail returns the details of Comic, including issues and annuals
+type ComicDetail struct {
+	Comic   []Comic `json:"comic"`
+	Annuals []Issue `json:"annuals"`
+	Issues  []Issue `json:"issues"`
+}
+
+// Issue is a single comic book issue of a comic book
+type Issue struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ImageURL    string `json:"imageURL"`
+	Number      string `json:"number"`
+	ReleaseDate string `json:"releaseDate"`
+	IssueDate   string `json:"issueDate"`
+	Status      string `json:"status"`
+	ComicName   string `json:"comicName"`
+}
+
+// GetComic fetches comic details from a comic ID
 func (m Mylar) GetComic(id string) (*ComicDetail, error) {
 	params := url.Values{}
 	params.Set("id", id)
@@ -91,6 +142,23 @@ func (m Mylar) GetComic(id string) (*ComicDetail, error) {
 	return &result, nil
 }
 
+// WantedIssue is a comicbook issue that has not yet been collected
+type WantedIssue struct {
+	Status          string `json:"Status"`
+	ComicName       string `json:"ComicName"`
+	IssueID         string `json:"IssueID"`
+	DigitalDate     string `json:"DigitalDate"`
+	IssueDate       string `json:"IssueDate"`
+	ImageURL        string `json:"ImageURL"`
+	ReleaseDate     string `json:"ReleaseDate"`
+	IssueNumberText string `json:"Issue_Number"`
+	IssueNumber     int    `json:"Int_IssueNumber"`
+	IssueName       string `json:"IssueName"`
+	ComicID         string `json:"ComicID"`
+	DateAdded       string `json:"DateAdded"`
+}
+
+// GetWanted returns a list of comicbook issues that have not been collected
 func (m Mylar) GetWanted() ([]WantedIssue, error) {
 	params := url.Values{}
 	httpResponse, err := m.get(GetWantedCommand, params)
@@ -105,6 +173,19 @@ func (m Mylar) GetWanted() ([]WantedIssue, error) {
 	return result, nil
 }
 
+// History is an entry in Mylar's history log
+type History struct {
+	Status      string `json:"Status"`
+	ComicName   string `json:"ComicName"`
+	IssueID     string `json:"IssueID"`
+	CheckSum    string `json:"crc"`
+	IssueNumber string `json:"Issue_Number"`
+	ComicID     string `json:"ComicID"`
+	Provider    string `json:"Provider"`
+	DateAdded   string `json:"DateAdded"`
+}
+
+// GetHistory returns the history entries from the Mylar API
 func (m Mylar) GetHistory() ([]History, error) {
 	httpResponse, err := m.get(GetHistoryCommand, url.Values{})
 	if err != nil {
@@ -146,70 +227,4 @@ func handleStructuredResponse(resp *http.Response) (json.RawMessage, error) {
 		return nil, fmt.Errorf("error %d: %s", response.Error.Code, response.Error.Message)
 	}
 	return response.Data, nil
-}
-
-type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-type Response struct {
-	Success bool            `json:"success"`
-	Error   Error           `json:"error"`
-	Data    json.RawMessage `json:"data"`
-}
-
-type Comic struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	ImageURL    string `json:"imageURL"`
-	Status      string `json:"status"`
-	Publisher   string `json:"publisher"`
-	Year        string `json:"year"`
-	LatestIssue string `json:"latestIssue"`
-	Total       int    `json:"totalIssues"`
-	DetailsURL  string `json:"detailsURL"`
-}
-
-type ComicDetail struct {
-	Comic   []Comic `json:"comic"`
-	Annuals []Issue `json:"annuals"`
-	Issues  []Issue `json:"issues"`
-}
-
-type Issue struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	ImageURL    string `json:"imageURL"`
-	Number      string `json:"number"`
-	ReleaseDate string `json:"releaseDate"`
-	IssueDate   string `json:"issueDate"`
-	Status      string `json:"status"`
-	ComicName   string `json:"comicName"`
-}
-
-type WantedIssue struct {
-	Status          string
-	ComicName       string
-	IssueID         string
-	DigitalDate     string
-	IssueDate       string
-	ImageURL        string
-	ReleaseDate     string
-	IssueNumberText string `json:"Issue_Number"`
-	IssueNumber     int    `json:"Int_IssueNumber"`
-	IssueName       string
-	ComicID         string
-	DateAdded       string
-}
-
-type History struct {
-	Status      string
-	ComicName   string
-	IssueID     string
-	CheckSum    string `json:"crc"`
-	IssueNumber string `json:"Issue_Number"`
-	ComicID     string
-	Provider    string
-	DateAdded   string
 }
